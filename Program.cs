@@ -36,6 +36,8 @@ class Program
     //TODO: Refactor Function, Separation of concerns, Clean code, Complexity, Factory
     static void TransferFile(string sourcePath, string destinationPath)
     {
+        int maxRetries = 3;
+        int retryCount = 0;
         const int bufferSize = 4 * 1024 * 1024;
         byte[] buffer = new byte[bufferSize];
         long totalBytes = new FileInfo(sourcePath).Length;
@@ -62,8 +64,9 @@ class Program
             string sourceHash = CalculateMD5(buffer, bytesRead);
 
             bool isHashVerified = false;
-            while (!isHashVerified)
+            while (!isHashVerified && retryCount < maxRetries)
             {
+                retryCount++;
                 destination.Write(buffer, 0, bytesRead);
                 destination.Flush();
                 destination.Position = position;
