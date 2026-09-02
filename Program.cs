@@ -69,7 +69,14 @@ class Program
             DisplayTransferInfo(progress);
         }
     }
-    
+
+    private static string CalculateMD5(byte[] buffer, int bytesRead)
+    {
+        using MD5 md5 = MD5.Create();
+        byte[] hash = md5.ComputeHash(buffer, 0, bytesRead);
+        return Convert.ToHexString(hash);
+    }
+
     static void DisplayTransferInfo(TransferProgress progress)
     {
         Console.WriteLine($"Chunk: {progress.ChunkNumber}");
