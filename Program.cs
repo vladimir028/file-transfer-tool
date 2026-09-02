@@ -37,7 +37,7 @@ class Program
     {
         const int bufferSize = 4 * 1024 * 1024;
         byte[] buffer = new byte[bufferSize];
-        
+        long totalBytes = new FileInfo(sourcePath).Length;
         long copiedBytes = 0;
 
         using FileStream source = new FileStream(
@@ -55,6 +55,10 @@ class Program
         while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
         {
             destination.Write(buffer, 0, bytesRead);
+
+            copiedBytes += bytesRead;
+            double progress = (double)copiedBytes / totalBytes * 100;
+            Console.WriteLine($"Progress: {progress:F2}%");
         }
     }
 }
