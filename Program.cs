@@ -26,8 +26,6 @@ class Program
         
         TransferFile(sourcePath, destinationPath);
         
-        Console.WriteLine();
-        
         Console.WriteLine("File transferred successfully!");
         Console.WriteLine($"From: {sourcePath}");
         Console.WriteLine($"To:   {destinationPath}");
@@ -39,6 +37,7 @@ class Program
         byte[] buffer = new byte[bufferSize];
         long totalBytes = new FileInfo(sourcePath).Length;
         long copiedBytes = 0;
+        int chunkNumber = 0;
 
         using FileStream source = new FileStream(
             sourcePath,
@@ -54,11 +53,29 @@ class Program
 
         while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
         {
+            chunkNumber++;
             destination.Write(buffer, 0, bytesRead);
 
             copiedBytes += bytesRead;
-            double progress = (double)copiedBytes / totalBytes * 100;
-            Console.WriteLine($"Progress: {progress:F2}%");
+            
+            var progress = new TransferProgress
+            {
+                ChunkNumber = chunkNumber,
+                ChunkSizeMB = (double)bytesRead / (1024 * 1024),
+                CopiedMB = (double)copiedBytes / (1024 * 1024),
+                TotalMB = (double)totalBytes / (1024 * 1024),
+                ProgressPercentage = (double)copiedBytes / totalBytes * 100
+            };
+            DisplayTransferInfo(progress);
         }
+    }
+    
+    static void DisplayTransferInfo(TransferProgress progress)
+    {
+        Console.WriteLine($"Chunk: {progress.ChunkNumber}");
+        Console.WriteLine($"Chunk size: {progress.ChunkSizeMB:F2} MB");
+        Console.WriteLine($"Copied: {progress.CopiedMB:F2} MB / {progress.TotalMB:F2} MB");
+        Console.WriteLine($"Progress: {progress.ProgressPercentage:F2}%");
+        Console.WriteLine();
     }
 }
