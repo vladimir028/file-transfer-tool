@@ -1,4 +1,6 @@
-﻿namespace FileTransferTool;
+﻿using System.Security.Cryptography;
+
+namespace FileTransferTool;
 
 class Program
 {
@@ -31,12 +33,14 @@ class Program
         Console.WriteLine($"To:   {destinationPath}");
     }
     
+    //TODO: Refactor Function, Separation of concerns, Clean code, Complexity, Factory
     static void TransferFile(string sourcePath, string destinationPath)
     {
         const int bufferSize = 4 * 1024 * 1024;
         byte[] buffer = new byte[bufferSize];
         long totalBytes = new FileInfo(sourcePath).Length;
         long copiedBytes = 0;
+        long position = 0;
         int chunkNumber = 0;
 
         using FileStream source = new FileStream(
@@ -47,16 +51,41 @@ class Program
         using FileStream destination = new FileStream(
             destinationPath,
             FileMode.Create,
-            FileAccess.Write);
+            FileAccess.ReadWrite);
 
         int bytesRead;
 
         while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
         {
             chunkNumber++;
-            destination.Write(buffer, 0, bytesRead);
+            
+            string sourceHash = CalculateMD5(buffer, bytesRead);
 
+            bool isHashVerified = false;
+            while (!isHashVerified)
+            {
+                destination.Write(buffer, 0, bytesRead);
+                destination.Flush();
+                destination.Position = position;
+
+                byte[] destinationBuffer = new byte[bytesRead];
+                int destinationBytesRead = destination.Read(destinationBuffer, 0, bytesRead);
+                string destinationHash = CalculateMD5(destinationBuffer, destinationBytesRead);
+
+                isHashVerified = sourceHash.Equals(destinationHash, StringComparison.OrdinalIgnoreCase);
+                if (!isHashVerified)
+                {
+                    Console.WriteLine($"Chunk {chunkNumber} failed verification. Retrying...");
+                }
+                else
+                {
+                    Console.WriteLine($"Chunk {chunkNumber} verified successfully. Source Hash: {sourceHash}, Destination Hash: {destinationHash}");
+                }
+            }
+
+            Console.WriteLine($"{chunkNumber}) position = {position}, hash = {CalculateMD5(buffer, bytesRead)}");
             copiedBytes += bytesRead;
+            position += bytesRead;
             
             var progress = new TransferProgress
             {
