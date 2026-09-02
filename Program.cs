@@ -37,7 +37,6 @@ class Program
     static void TransferFile(string sourcePath, string destinationPath)
     {
         int maxRetries = 3;
-        int retryCount = 0;
         const int bufferSize = 4 * 1024 * 1024;
         byte[] buffer = new byte[bufferSize];
         long totalBytes = new FileInfo(sourcePath).Length;
@@ -60,6 +59,7 @@ class Program
         while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
         {
             chunkNumber++;
+            int retryCount = 0;
             
             string sourceHash = CalculateMD5(buffer, bytesRead);
 
