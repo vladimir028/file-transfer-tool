@@ -24,10 +24,37 @@ class Program
         string fileName = Path.GetFileName(sourcePath);
         string destinationPath = Path.Combine(destinationFolder, fileName);
         
-        File.Copy(sourcePath, destinationPath, overwrite: true);
+        TransferFile(sourcePath, destinationPath);
+        
+        Console.WriteLine();
         
         Console.WriteLine("File transferred successfully!");
         Console.WriteLine($"From: {sourcePath}");
         Console.WriteLine($"To:   {destinationPath}");
+    }
+    
+    static void TransferFile(string sourcePath, string destinationPath)
+    {
+        const int bufferSize = 4 * 1024 * 1024;
+        byte[] buffer = new byte[bufferSize];
+        
+        long copiedBytes = 0;
+
+        using FileStream source = new FileStream(
+            sourcePath,
+            FileMode.Open,
+            FileAccess.Read);
+
+        using FileStream destination = new FileStream(
+            destinationPath,
+            FileMode.Create,
+            FileAccess.Write);
+
+        int bytesRead;
+
+        while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            destination.Write(buffer, 0, bytesRead);
+        }
     }
 }
