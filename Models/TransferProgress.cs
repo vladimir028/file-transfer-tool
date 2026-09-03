@@ -1,4 +1,4 @@
-﻿namespace FileTransferTool;
+﻿namespace FileTransferTool.Models;
 
 public class TransferProgress
 {
