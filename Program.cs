@@ -1,4 +1,5 @@
-﻿using FileTransferTool.Factory;
+﻿using System.Diagnostics;
+using FileTransferTool.Factory;
 using FileTransferTool.Services;
 
 namespace FileTransferTool;
@@ -29,6 +30,10 @@ class Program
         
         FactoryBuilder factory = new FactoryBuilder();
         FileTransferService transferService = factory.CreateFileTransferService(); 
+        Stopwatch stopwatch = Stopwatch.StartNew();
         await transferService.TransferFileAsync(sourcePath, destinationPath);
+        stopwatch.Stop();
+        TimeSpan ts = stopwatch.Elapsed;
+        Console.WriteLine($"Time: {ts.ToString(@"mm\:ss\.ff")}");
     }
 }
