@@ -61,8 +61,26 @@ public class FileTransferService
             position += bytesRead;
         }
 
-        _progressService.DisplayTransferCompleted(sourcePath, destinationPath);
+        if (IsSHAVerified(sourcePath, destinationPath))
+        {
+            _progressService.DisplayTransferCompleted(sourcePath, destinationPath);
+        }
+        
     }
+
+    private bool IsSHAVerified(string sourcePath, string destinationPath)
+    {
+        string sourceChecksum = _hashService.CalculateSHA256(sourcePath);
+        string destinationChecksum = _hashService.CalculateSHA256(destinationPath);
+
+        if (!sourceChecksum.Equals(destinationChecksum, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new IOException("Final file verification failed.");
+        }
+        _progressService.DisplaySourceDestinationChecksums(sourceChecksum, destinationChecksum);
+        return true;
+    }
+
     private bool TransferAndVerifyChunk(FileStream destination, byte[] buffer, int bytesRead, long position, string sourceHash, int chunkNumber)
     {
         int retryCount = 0;

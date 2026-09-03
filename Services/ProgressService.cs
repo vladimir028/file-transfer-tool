@@ -40,4 +40,10 @@ public class ProgressService
         Console.WriteLine($"From: {sourcePath}");
         Console.WriteLine($"To:   {destinationPath}");
     }
+
+    public void DisplaySourceDestinationChecksums(string sourceChecksum, string destinationChecksum)
+    {
+        Console.WriteLine($"Source Checksum: {sourceChecksum}");
+        Console.WriteLine($"Destination Checksum: {destinationChecksum}");
+    }
 }
