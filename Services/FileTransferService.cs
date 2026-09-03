@@ -15,7 +15,7 @@ public class FileTransferService
         _progressService = progressService;
     }
 
-    public void TransferFile(string sourcePath, string destinationPath)
+    public async Task TransferFileAsync(string sourcePath, string destinationPath)
     {
         byte[] buffer = new byte[_configuration.BufferSize];
         long totalBytes = new FileInfo(sourcePath).Length;
@@ -24,16 +24,16 @@ public class FileTransferService
         long position = 0;
         int chunkNumber = 0;
 
-        using FileStream source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read);
-        using FileStream destination = new FileStream(destinationPath, FileMode.Create, FileAccess.ReadWrite);
+        await using FileStream source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read);
+        await using FileStream destination = new FileStream(destinationPath, FileMode.Create, FileAccess.ReadWrite);
 
         int bytesRead;
-        while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+        while ((bytesRead = await source.ReadAsync(buffer, 0, buffer.Length)) > 0)
         {
             chunkNumber++;
             string sourceHash = _hashService.CalculateMD5(buffer, bytesRead);
 
-            bool verified = TransferAndVerifyChunk(destination, buffer, bytesRead, position, sourceHash, chunkNumber);
+            bool verified = await TransferAndVerifyChunkAsync(destination, buffer, bytesRead, position, sourceHash, chunkNumber);
 
             if (!verified)
             {
@@ -81,7 +81,7 @@ public class FileTransferService
         return true;
     }
 
-    private bool TransferAndVerifyChunk(FileStream destination, byte[] buffer, int bytesRead, long position, string sourceHash, int chunkNumber)
+    private async Task<bool> TransferAndVerifyChunkAsync(FileStream destination, byte[] buffer, int bytesRead, long position, string sourceHash, int chunkNumber)
     {
         int retryCount = 0;
 
@@ -89,11 +89,11 @@ public class FileTransferService
         {
             retryCount++;
             destination.Position = position;
-            destination.Write(buffer, 0, bytesRead);
+            await destination.WriteAsync(buffer, 0, bytesRead);
             destination.Position = position;
 
             byte[] destinationBuffer = new byte[bytesRead];
-            int destinationBytesRead = destination.Read(destinationBuffer, 0, bytesRead);
+            int destinationBytesRead = await destination.ReadAsync(destinationBuffer, 0, bytesRead);
             string destinationHash = _hashService.CalculateMD5(destinationBuffer, destinationBytesRead);
             bool verified = sourceHash.Equals(destinationHash, StringComparison.OrdinalIgnoreCase);
 

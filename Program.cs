@@ -5,7 +5,7 @@ namespace FileTransferTool;
 
 class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         Console.Write("Enter source file path: ");
         string? sourcePath = Console.ReadLine();
@@ -28,7 +28,7 @@ class Program
         string destinationPath = Path.Combine(destinationFolder, fileName);
         
         FactoryBuilder factory = new FactoryBuilder();
-        FileTransferService transferService = factory.CreateFileTransferService();
-        transferService.TransferFile(sourcePath, destinationPath);
+        FileTransferService transferService = factory.CreateFileTransferService(); 
+        await transferService.TransferFileAsync(sourcePath, destinationPath);
     }
 }
