@@ -37,9 +37,17 @@ class Program
         FactoryBuilder factory = new FactoryBuilder();
         FileTransferService transferService = factory.CreateFileTransferService(); 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        await transferService.TransferFileAsync(sourcePath, destinationPath);
-        stopwatch.Stop();
-        TimeSpan ts = stopwatch.Elapsed;
-        Console.WriteLine($"Time: {ts.ToString(@"mm\:ss\.ff")}");
+        try
+        {
+            await transferService.TransferFileAsync(sourcePath, destinationPath);
+            stopwatch.Stop();
+            TimeSpan ts = stopwatch.Elapsed;
+            Console.WriteLine($"Time: {ts.ToString(@"mm\:ss\.ff")}");
+        }
+        catch (Exception ex)
+        {
+            stopwatch.Stop();
+            Console.WriteLine($"Transfer failed: {ex.Message}");
+        }
     }
 }
