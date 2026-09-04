@@ -1,4 +1,5 @@
-﻿using FileTransferTool.Models;
+using Microsoft.Win32.SafeHandles;
+using FileTransferTool.Models;
 
 namespace FileTransferTool.Services;
 
@@ -17,48 +18,52 @@ public class FileTransferService
 
     public async Task TransferFileAsync(string sourcePath, string destinationPath)
     {
-        byte[] buffer = new byte[_configuration.BufferSize];
+        int chunkSize = _configuration.BufferSize;
+        byte[] buffer = new byte[chunkSize];
         long totalBytes = new FileInfo(sourcePath).Length;
+        int chunkCount = (int)((totalBytes + chunkSize - 1) / chunkSize);
 
         long copiedBytes = 0;
-        long position = 0;
-        int chunkNumber = 0;
 
-        await using FileStream source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read);
-        await using FileStream destination = new FileStream(destinationPath, FileMode.Create, FileAccess.ReadWrite);
+        using SafeFileHandle source = File.OpenHandle(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.Asynchronous);
+        using SafeFileHandle destination = File.OpenHandle(destinationPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, FileOptions.Asynchronous);
 
-        int bytesRead;
-        while ((bytesRead = await source.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        RandomAccess.SetLength(destination, totalBytes);
+
+        for (int index = 0; index < chunkCount; index++)
         {
-            chunkNumber++;
-            string sourceHash = _hashService.CalculateMD5(buffer, bytesRead);
+            int chunkNumber = index + 1;
+            long position = (long)index * chunkSize;
+            int size = (int)Math.Min(chunkSize, totalBytes - position);
 
-            bool verified = await TransferAndVerifyChunkAsync(destination, buffer, bytesRead, position, sourceHash, chunkNumber);
+            await FillBufferAsync(source, buffer, size, position);
+            string sourceHash = _hashService.CalculateMD5(buffer, size);
+
+            bool verified = await TransferAndVerifyChunkAsync(destination, buffer, size, position, sourceHash, chunkNumber);
 
             if (!verified)
             {
                 throw new IOException($"Chunk {chunkNumber} could not be verified.");
             }
-            copiedBytes += bytesRead;
+            copiedBytes += size;
             _progressService.DisplayChunkInfo(new ChunkInfo
             {
                 ChunkNumber = chunkNumber,
                 Position = position,
-                Size = bytesRead,
+                Size = size,
                 Hash = sourceHash
             });
 
             var progress = new TransferProgress
             {
                 ChunkNumber = chunkNumber,
-                ChunkSizeMB = (double)bytesRead / (1024 * 1024),
+                ChunkSizeMB = (double)size / (1024 * 1024),
                 CopiedMB = (double)copiedBytes / (1024 * 1024),
                 TotalMB = (double)totalBytes / (1024 * 1024),
-                ProgressPercentage = (double)copiedBytes / totalBytes * 100
+                ProgressPercentage = totalBytes == 0 ? 100 : (double)copiedBytes / totalBytes * 100
             };
 
             _progressService.DisplayTransferInfo(progress);
-            position += bytesRead;
         }
 
         if (IsSHAVerified(sourcePath, destinationPath))
@@ -81,20 +86,18 @@ public class FileTransferService
         return true;
     }
 
-    private async Task<bool> TransferAndVerifyChunkAsync(FileStream destination, byte[] buffer, int bytesRead, long position, string sourceHash, int chunkNumber)
+    private async Task<bool> TransferAndVerifyChunkAsync(SafeFileHandle destination, byte[] buffer, int size, long position, string sourceHash, int chunkNumber)
     {
         int retryCount = 0;
 
         while (retryCount < _configuration.MaxRetries)
         {
             retryCount++;
-            destination.Position = position;
-            await destination.WriteAsync(buffer, 0, bytesRead);
-            destination.Position = position;
+            await RandomAccess.WriteAsync(destination, buffer.AsMemory(0, size), position);
 
-            byte[] destinationBuffer = new byte[bytesRead];
-            int destinationBytesRead = await destination.ReadAsync(destinationBuffer, 0, bytesRead);
-            string destinationHash = _hashService.CalculateMD5(destinationBuffer, destinationBytesRead);
+            byte[] destinationBuffer = new byte[size];
+            await FillBufferAsync(destination, destinationBuffer, size, position);
+            string destinationHash = _hashService.CalculateMD5(destinationBuffer, size);
             bool verified = sourceHash.Equals(destinationHash, StringComparison.OrdinalIgnoreCase);
 
             if (verified)
@@ -105,5 +108,19 @@ public class FileTransferService
             _progressService.DisplayChunkFailure(chunkNumber);
         }
         return false;
+    }
+
+    private async Task FillBufferAsync(SafeFileHandle handle, byte[] buffer, int count, long offset)
+    {
+        int totalRead = 0;
+        while (totalRead < count)
+        {
+            int bytesRead = await RandomAccess.ReadAsync(handle, buffer.AsMemory(totalRead, count - totalRead), offset + totalRead);
+            if (bytesRead == 0)
+            {
+                throw new EndOfStreamException($"File ended unexpectedly at offset {offset + totalRead}.");
+            }
+            totalRead += bytesRead;
+        }
     }
 }
