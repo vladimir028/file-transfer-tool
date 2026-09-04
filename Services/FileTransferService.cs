@@ -1,3 +1,4 @@
+using System.Buffers;
 using Microsoft.Win32.SafeHandles;
 using FileTransferTool.Models;
 
@@ -19,7 +20,6 @@ public class FileTransferService
     public async Task TransferFileAsync(string sourcePath, string destinationPath)
     {
         int chunkSize = _configuration.BufferSize;
-        byte[] buffer = new byte[chunkSize];
         long totalBytes = new FileInfo(sourcePath).Length;
         int chunkCount = (int)((totalBytes + chunkSize - 1) / chunkSize);
 
@@ -30,41 +30,53 @@ public class FileTransferService
 
         RandomAccess.SetLength(destination, totalBytes);
 
-        for (int index = 0; index < chunkCount; index++)
+        var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _configuration.MaxConcurrency };
+
+        await Parallel.ForEachAsync(Enumerable.Range(0, chunkCount), parallelOptions, async (index, _) =>
         {
             int chunkNumber = index + 1;
             long position = (long)index * chunkSize;
             int size = (int)Math.Min(chunkSize, totalBytes - position);
 
-            await FillBufferAsync(source, buffer, size, position);
-            string sourceHash = _hashService.CalculateMD5(buffer, size);
-
-            bool verified = await TransferAndVerifyChunkAsync(destination, buffer, size, position, sourceHash, chunkNumber);
-
-            if (!verified)
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(size);
+            try
             {
-                throw new IOException($"Chunk {chunkNumber} could not be verified.");
+                await FillBufferAsync(source, buffer, size, position);
+                string sourceHash = _hashService.CalculateMD5(buffer, size);
+
+                bool verified = await TransferAndVerifyChunkAsync(destination, buffer, size, position, sourceHash, chunkNumber);
+
+                if (!verified)
+                {
+                    throw new IOException($"Chunk {chunkNumber} could not be verified.");
+                }
+
+                _progressService.DisplayChunkInfo(new ChunkInfo
+                {
+                    ChunkNumber = chunkNumber,
+                    Position = position,
+                    Size = size,
+                    Hash = sourceHash
+                });
             }
-            copiedBytes += size;
-            _progressService.DisplayChunkInfo(new ChunkInfo
+            finally
             {
-                ChunkNumber = chunkNumber,
-                Position = position,
-                Size = size,
-                Hash = sourceHash
-            });
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+
+            long copied = Interlocked.Add(ref copiedBytes, size);
 
             var progress = new TransferProgress
             {
                 ChunkNumber = chunkNumber,
                 ChunkSizeMB = (double)size / (1024 * 1024),
-                CopiedMB = (double)copiedBytes / (1024 * 1024),
+                CopiedMB = (double)copied / (1024 * 1024),
                 TotalMB = (double)totalBytes / (1024 * 1024),
-                ProgressPercentage = totalBytes == 0 ? 100 : (double)copiedBytes / totalBytes * 100
+                ProgressPercentage = totalBytes == 0 ? 100 : (double)copied / totalBytes * 100
             };
 
             _progressService.DisplayTransferInfo(progress);
-        }
+        });
 
         if (IsSHAVerified(sourcePath, destinationPath))
         {
@@ -88,26 +100,33 @@ public class FileTransferService
 
     private async Task<bool> TransferAndVerifyChunkAsync(SafeFileHandle destination, byte[] buffer, int size, long position, string sourceHash, int chunkNumber)
     {
-        int retryCount = 0;
-
-        while (retryCount < _configuration.MaxRetries)
+        byte[] destinationBuffer = ArrayPool<byte>.Shared.Rent(size);
+        try
         {
-            retryCount++;
-            await RandomAccess.WriteAsync(destination, buffer.AsMemory(0, size), position);
+            int retryCount = 0;
 
-            byte[] destinationBuffer = new byte[size];
-            await FillBufferAsync(destination, destinationBuffer, size, position);
-            string destinationHash = _hashService.CalculateMD5(destinationBuffer, size);
-            bool verified = sourceHash.Equals(destinationHash, StringComparison.OrdinalIgnoreCase);
-
-            if (verified)
+            while (retryCount < _configuration.MaxRetries)
             {
-                _progressService.DisplayChunkVerification(chunkNumber, sourceHash, destinationHash);
-                return true;
+                retryCount++;
+                await RandomAccess.WriteAsync(destination, buffer.AsMemory(0, size), position);
+
+                await FillBufferAsync(destination, destinationBuffer, size, position);
+                string destinationHash = _hashService.CalculateMD5(destinationBuffer, size);
+                bool verified = sourceHash.Equals(destinationHash, StringComparison.OrdinalIgnoreCase);
+
+                if (verified)
+                {
+                    _progressService.DisplayChunkVerification(chunkNumber, sourceHash, destinationHash);
+                    return true;
+                }
+                _progressService.DisplayChunkFailure(chunkNumber);
             }
-            _progressService.DisplayChunkFailure(chunkNumber);
+            return false;
         }
-        return false;
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(destinationBuffer);
+        }
     }
 
     private async Task FillBufferAsync(SafeFileHandle handle, byte[] buffer, int count, long offset)
