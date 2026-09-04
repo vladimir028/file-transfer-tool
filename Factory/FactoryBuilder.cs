@@ -10,7 +10,8 @@ public class FactoryBuilder
         return new TransferConfiguration
         {
             BufferSize = 4 * 1024 * 1024,
-            MaxRetries = 3
+            MaxRetries = 3,
+            MaxConcurrency = 4
         };
     }
 
