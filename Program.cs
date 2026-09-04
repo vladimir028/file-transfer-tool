@@ -27,7 +27,13 @@ class Program
         
         string fileName = Path.GetFileName(sourcePath);
         string destinationPath = Path.Combine(destinationFolder, fileName);
-        
+
+        if (string.Equals(Path.GetFullPath(sourcePath), Path.GetFullPath(destinationPath), StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("Source and destination paths cannot be the same.");
+            return;
+        }
+
         FactoryBuilder factory = new FactoryBuilder();
         FileTransferService transferService = factory.CreateFileTransferService(); 
         Stopwatch stopwatch = Stopwatch.StartNew();
