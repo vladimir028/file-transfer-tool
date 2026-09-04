@@ -11,11 +11,11 @@ public class HashService
         return Convert.ToHexString(hash);
     }
 
-    public string CalculateSHA256(string filePath)
+    public async Task<string> CalculateSHA256Async(string filePath, int bufferSize)
     {
-        using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        await using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,  bufferSize,  FileOptions.Asynchronous);
         using SHA256 sha256 = SHA256.Create();
-        byte[] hash = sha256.ComputeHash(stream);
+        byte[] hash = await sha256.ComputeHashAsync(stream);
         return Convert.ToHexString(hash);
     }
 }

@@ -24,6 +24,7 @@ public class FileTransferService
         int chunkCount = (int)((totalBytes + chunkSize - 1) / chunkSize);
 
         long copiedBytes = 0;
+        Task<string> sourceChecksumTask = _hashService.CalculateSHA256Async(sourcePath, _configuration.BufferSize);
 
         using SafeFileHandle source = File.OpenHandle(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.Asynchronous);
         using SafeFileHandle destination = File.OpenHandle(destinationPath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, FileOptions.Asynchronous);
@@ -78,17 +79,17 @@ public class FileTransferService
             _progressService.DisplayTransferInfo(progress);
         });
 
-        if (IsSHAVerified(sourcePath, destinationPath))
+        string sourceChecksum = await sourceChecksumTask;
+        if (await IsSHAVerifiedAsync(sourceChecksum, destinationPath))
         {
             _progressService.DisplayTransferCompleted(sourcePath, destinationPath);
         }
         
     }
 
-    private bool IsSHAVerified(string sourcePath, string destinationPath)
+    private async Task<bool> IsSHAVerifiedAsync(string? sourceChecksum, string destinationPath )
     {
-        string sourceChecksum = _hashService.CalculateSHA256(sourcePath);
-        string destinationChecksum = _hashService.CalculateSHA256(destinationPath);
+        string destinationChecksum = await _hashService.CalculateSHA256Async(destinationPath, _configuration.BufferSize);
 
         if (!sourceChecksum.Equals(destinationChecksum, StringComparison.OrdinalIgnoreCase))
         {
