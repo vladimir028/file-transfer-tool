@@ -9,6 +9,7 @@ public class FileTransferService
     private readonly TransferConfiguration _configuration;
     private readonly HashService _hashService;
     private readonly ProgressService _progressService;
+    private readonly double _bytesPerMegabyte = 1024.0 *  1024.0;
 
     public FileTransferService(TransferConfiguration configuration, HashService hashService, ProgressService progressService)
     {
@@ -70,9 +71,9 @@ public class FileTransferService
             var progress = new TransferProgress
             {
                 ChunkNumber = chunkNumber,
-                ChunkSizeMB = (double)size / (1024 * 1024),
-                CopiedMB = (double)copied / (1024 * 1024),
-                TotalMB = (double)totalBytes / (1024 * 1024),
+                ChunkSizeMB = size / _bytesPerMegabyte,
+                CopiedMB = copied / _bytesPerMegabyte,
+                TotalMB = totalBytes / _bytesPerMegabyte,
                 ProgressPercentage = totalBytes == 0 ? 100 : (double)copied / totalBytes * 100
             };
 
