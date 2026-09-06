@@ -20,18 +20,14 @@ public class FileTransferService
 
     public async Task TransferFileAsync(string sourcePath, string destinationPath)
     {
-        bool completed = false;
         try
         {
             await CopyAndVerifyAsync(sourcePath, destinationPath);
-            completed = true;
         }
-        finally
+        catch(Exception ex)
         {
-            if (!completed)
-            {
-                DeleteIncompleteDestination(destinationPath);
-            }
+            _progressService.DisplayExceptionMessage(ex.Message);
+            DeleteIncompleteDestination(destinationPath);
         }
     }
 
@@ -166,15 +162,15 @@ public class FileTransferService
         }
     }
 
-    private async Task FillBufferAsync(SafeFileHandle handle, byte[] buffer, int count, long offset)
+    private async Task FillBufferAsync(SafeFileHandle handle, byte[] buffer, int count, long position)
     {
         int totalRead = 0;
         while (totalRead < count)
         {
-            int bytesRead = await RandomAccess.ReadAsync(handle, buffer.AsMemory(totalRead, count - totalRead), offset + totalRead);
+            int bytesRead = await RandomAccess.ReadAsync(handle, buffer.AsMemory(totalRead, count - totalRead), position + totalRead);
             if (bytesRead == 0)
             {
-                throw new EndOfStreamException($"File ended unexpectedly at offset {offset + totalRead}.");
+                throw new EndOfStreamException($"File ended unexpectedly at offset {position + totalRead}.");
             }
             totalRead += bytesRead;
         }

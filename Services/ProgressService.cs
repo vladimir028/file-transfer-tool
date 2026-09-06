@@ -58,4 +58,9 @@ public class ProgressService
         Console.WriteLine($"Reason: {reason}");
         Console.WriteLine("The file is incomplete and must not be used.");
     }
+
+    public void DisplayExceptionMessage(string message)
+    {
+        Console.WriteLine(message);
+    }
 }
