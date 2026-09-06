@@ -20,6 +20,23 @@ public class FileTransferService
 
     public async Task TransferFileAsync(string sourcePath, string destinationPath)
     {
+        bool completed = false;
+        try
+        {
+            await CopyAndVerifyAsync(sourcePath, destinationPath);
+            completed = true;
+        }
+        finally
+        {
+            if (!completed)
+            {
+                DeleteIncompleteDestination(destinationPath);
+            }
+        }
+    }
+
+    private async Task CopyAndVerifyAsync(string sourcePath, string destinationPath)
+    {
         int chunkSize = _configuration.BufferSize;
         long totalBytes = new FileInfo(sourcePath).Length;
         int chunkCount = (int)((totalBytes + chunkSize - 1) / chunkSize);
@@ -86,6 +103,24 @@ public class FileTransferService
             _progressService.DisplayTransferCompleted(sourcePath, destinationPath);
         }
         
+    }
+
+    private void DeleteIncompleteDestination(string destinationPath)
+    {
+        try
+        {
+            if (!File.Exists(destinationPath))
+            {
+                return;
+            }
+
+            File.Delete(destinationPath);
+            _progressService.DisplayIncompleteDestinationDeleted(destinationPath);
+        }
+        catch (Exception ex)
+        {
+            _progressService.DisplayIncompleteDestinationDeleteFailed(destinationPath, ex.Message);
+        }
     }
 
     private async Task<bool> IsSHAVerifiedAsync(string? sourceChecksum, string destinationPath )

@@ -46,4 +46,16 @@ public class ProgressService
         Console.WriteLine($"Source Checksum: {sourceChecksum}");
         Console.WriteLine($"Destination Checksum: {destinationChecksum}");
     }
+
+    public void DisplayIncompleteDestinationDeleted(string destinationPath)
+    {
+        Console.WriteLine($"Deleted incomplete destination file: {destinationPath}");
+    }
+
+    public void DisplayIncompleteDestinationDeleteFailed(string destinationPath, string reason)
+    {
+        Console.WriteLine($"Could not delete the incomplete destination file: {destinationPath}");
+        Console.WriteLine($"Reason: {reason}");
+        Console.WriteLine("The file is incomplete and must not be used.");
+    }
 }
